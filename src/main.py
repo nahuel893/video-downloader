@@ -37,5 +37,3 @@ yt.streams.filter(abr='128kbps').first().download(filename='audio.mp3')
 video = ffmpeg.input('video.mp4')
 audio = ffmpeg.input('audio.mp3')
 ffmpeg.output(audio, video, 'descarga.mp4').run(overwrite_output=True)
-
-sys.os(' ')
