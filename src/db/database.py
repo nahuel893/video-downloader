@@ -8,7 +8,10 @@ class Data:
         self.conn = None
         self.create_connection()
         self.cursor.execute(
-            "Create table if not exists downloads_test(primary_key integer primary key, source text, date text);")
+            '''Create table if not exists downloads_test(
+            primary_key integer primary key,
+            source text,
+            date text);''')
 
     def create_connection(self):
         """ create a database connection to a SQLite database """
@@ -21,11 +24,11 @@ class Data:
             print(e)
 
     def insert(self, link):
-        query = '''Insert into downloads_test(source, date)
-                Values(?, datetime('now', 'localtime'));'''
-        self.cursor.execute(query, (link,))
+        self.cursor.execute(
+            '''Insert into downloads_test(source, date)
+            Values(?, datetime('now', 'localtime'));''',
+            (link,))
         self.conn.commit()
-        print(query)
 
     def select(self):
         self.cursor.execute('Select * from downloads_test;')
@@ -33,6 +36,7 @@ class Data:
 
     def close(self):
         self.conn.close()
+
 
 if __name__ == '__main__':
     data = Data()
