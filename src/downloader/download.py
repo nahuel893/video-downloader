@@ -3,10 +3,16 @@ import yt_dlp as dl
 
 class Downloader:
     def __init__(self):
-        pass
+        self.status = ''
+
+    def my_hook(self, d):
+        if d['status'] == 'finished':
+            self.status = 'finished'
 
     def download(self, link=''):
-        opts = {}
+        opts = {
+            'progress_hooks': [self.my_hook],
+        }
 
         with dl.YoutubeDL(opts) as ytdl:
             ytdl.download([link])
