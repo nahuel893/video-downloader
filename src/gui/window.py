@@ -1,10 +1,11 @@
-# import gi
-# gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk
-import sys
-sys.path.insert(0, '../downloader')
-from downloader.download import Downloader 
-sys.path.insert(0, '../db')
+from downloader.download import Downloader
+from time import sleep
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk, GLib
+import threading
+from multiprocessing import Process
+from time import sleep
 from db.database import Data
 
 
@@ -13,8 +14,23 @@ class MyWindow(Gtk.Window):
         super().__init__(title="Hello World")
         self.notebook = Gtk.Notebook()
         self.add(self.notebook)
+
+        # Init conection with database
+        self.data = Data()
+        self.data.create_connection()
+
+        # Create Downloader Object
+        self.downloader = Downloader()
+
+        # Display page of window
         self.display_download()
         self.display_history()
+
+        self.link = ''
+
+
+        # A flag for daemon thread while loop stop
+        self.flag_daemon = True
 
     def run(self):
         self.connect("destroy", Gtk.main_quit)
@@ -35,37 +51,98 @@ class MyWindow(Gtk.Window):
         self.download_button.connect("clicked", self.__on_button_clicked)
         self.download_page.pack_start(self.download_button, False, False, 0)
 
+        # Display progress bar
+        self.progress_bar = Gtk.ProgressBar(show_text=True)
+        self.progress_bar.set_fraction(0.0)
+        self.download_page.pack_start(self.progress_bar, False, False, 0)
+
         self.notebook.append_page(self.download_page,
                                   Gtk.Label(label='Download'))
 
-    def __on_button_clicked(self, widget):
-        link = self.download_entry.get_text()
-        d = Downloader()
-        d.download(link)
-        self.data.insert(link)
+ 
 
-        if d.status == 'finished':
+    # Check file for download progress expresed in percent
+    def update_progress(self, fraction):
+        print('progrss update')
+        self.progress_bar.set_fraction(float(fraction))
+
+    def readfile(self):
+        with open('percent.txt', 'r') as f:
+            res = f.readlines()
+            if len(res) == 0:
+                return ''
+            return res[-1]
+
+    def __check_dl_percent(self):
+        while self.readfile() == '':
+            pass
+        while self.flag_daemon:
+            sleep(0.5)
+            percent = self.readfile()
+            print('Percent antes de procesar:', repr(percent))
+            if percent != '':
+                percent = self.__clean_percent(percent)
+            print('Percent despues:', repr(percent))
+            if percent != '':
+                GLib.idle_add(self.update_progress, percent)
+            if percent == '':
+                self.flag_daemon = False
+        else:
+            print('FIN')
+
+    # def __check_dl_percent(self):
+    #     while self.flag_daemon:
+    #         sleep(0.5)
+    #         percent = 
+    #         print('Percent antes de procesar:', repr(percent))
+    #         if percent != '':
+    #             percent = self.__clean_percent(percent)
+    #         print('Percent despues:', repr(percent))
+    #         if percent != '':
+    #             GLib.idle_add(self.update_progress, percent)
+    #         if percent == '':
+    #             self.flag_daemon = False
+    #     else:
+    #         print('FIN')
+    def __download_th(self, link):
+        self.flag_daemon = True
+        self.downloader.download(self.link)
+        self.flag_daemon = False
+        print('SE TERMINO EL PROCESO')
+
+    def __on_button_clicked(self, widget):
+
+        # Process for download
+        self.proc_download = Process(target=self.__download_th,
+                                     args=(self.link,), daemon=True)
+        self.link = self.download_entry.get_text()
+
+        self.proc_download.start()
+        self.__check_dl_percent()
+        self.proc_download.join()
+        # Insert data in db
+        self.data.insert(self.link)
+        if self.downloader.status == 'finished':
             print('status is finished')
             self.update_history()
 
     def display_history(self):
-        # History page
+        # Create History page
         self.history_page = Gtk.Box.new(Gtk.Orientation.VERTICAL, spacing=6)
 
         # Model
         self.store = Gtk.ListStore(str, str)
-        self.data = Data()
-        self.data.create_connection()
         regist = self.data.select()
-
         for row in regist:
             self.store.append([row[1], row[2]])
 
-        # View, set columns respect data inserted
+        # View
         self.view = Gtk.TreeView(model=self.store)
-        column1 = Gtk.TreeViewColumn(
-            'Source', Gtk.CellRendererText(), text=0, weight=1)
 
+        # Set columns respect data inserted
+        # text=0 first column, text=1 second column
+        column1 = Gtk.TreeViewColumn(
+            'Source', Gtk.CellRendererText(), text=0)
         column2 = Gtk.TreeViewColumn(
             'Date', Gtk.CellRendererText(), text=1, weight=1)
 
@@ -79,9 +156,8 @@ class MyWindow(Gtk.Window):
 
     # Add the last input of DB
     def update_history(self):
-        self.data.create_connection()
         regist = self.data.select()
-        print(regist)
+        # print(regist)
         last = regist[len(regist)-1]
         self.store.append([last[1], last[2]])
 
