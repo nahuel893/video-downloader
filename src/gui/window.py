@@ -1,12 +1,34 @@
 from downloader.download import Downloader
 from time import sleep
-import gi
-gi.require_version('Gtk', '3.0')
+# import gi
+# gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GLib
 import threading
-from multiprocessing import Process
-from time import sleep
+# from multiprocessing import Process
 from db.database import Data
+
+
+class ProgressUpdate(threading.Thread):
+    def __init__(self, progress_bar, downloader):
+        super().__init__()
+        self.progress_bar = progress_bar
+        self.downloader = downloader
+        self.is_running = True
+
+    def stop(self):
+        self.is_running = False
+
+    def run(self):
+        while self.is_running:
+            percent = self.downloader.percent
+            print('Percent', percent)
+            if percent and percent != 0:
+                GLib.idle_add(self._update_progres_bar, percent)
+            sleep(0.5)
+
+    def _update_progres_bar(self, percent):
+        self.progress_bar.set_fraction(percent)
+
 
 
 class MyWindow(Gtk.Window):
@@ -27,7 +49,6 @@ class MyWindow(Gtk.Window):
         self.display_history()
 
         self.link = ''
-
 
         # A flag for daemon thread while loop stop
         self.flag_daemon = True
@@ -59,8 +80,6 @@ class MyWindow(Gtk.Window):
         self.notebook.append_page(self.download_page,
                                   Gtk.Label(label='Download'))
 
- 
-
     # Check file for download progress expresed in percent
     def update_progress(self, fraction):
         print('progrss update')
@@ -73,22 +92,22 @@ class MyWindow(Gtk.Window):
                 return ''
             return res[-1]
 
-    def __check_dl_percent(self):
-        while self.readfile() == '':
-            pass
-        while self.flag_daemon:
-            sleep(0.5)
-            percent = self.readfile()
-            print('Percent antes de procesar:', repr(percent))
-            if percent != '':
-                percent = self.__clean_percent(percent)
-            print('Percent despues:', repr(percent))
-            if percent != '':
-                GLib.idle_add(self.update_progress, percent)
-            if percent == '':
-                self.flag_daemon = False
-        else:
-            print('FIN')
+    # def __check_dl_percent(self):
+    #     while self.readfile() == '':
+    #         pass
+    #     while self.flag_daemon:
+    #         sleep(0.5)
+    #         percent = self.readfile()
+    #         print('Percent antes de procesar:', repr(percent))
+    #         if percent != '':
+    #             percent = self.__clean_percent(percent)
+    #         print('Percent despues:', repr(percent))
+    #         if percent != '':
+    #             GLib.idle_add(self.update_progress, percent)
+    #         if percent == '':
+    #             self.flag_daemon = False
+    #     else:
+    #         print('FIN')
 
     # def __check_dl_percent(self):
     #     while self.flag_daemon:
@@ -111,15 +130,20 @@ class MyWindow(Gtk.Window):
         print('SE TERMINO EL PROCESO')
 
     def __on_button_clicked(self, widget):
-
         # Process for download
-        self.proc_download = Process(target=self.__download_th,
-                                     args=(self.link,), daemon=True)
-        self.link = self.download_entry.get_text()
+        link = self.download_entry.get_text()
 
-        self.proc_download.start()
-        self.__check_dl_percent()
-        self.proc_download.join()
+        if link != "":
+            self.progress_bar.set_fraction(0)
+            downloader = Downloader()
+            updater = ProgressUpdate(self.progress_bar, downloader)
+
+            updater.start()
+            downloader.download()
+            updater.stop()
+
+            self.progress_bar.set_fraction(1)
+
         # Insert data in db
         self.data.insert(self.link)
         if self.downloader.status == 'finished':
