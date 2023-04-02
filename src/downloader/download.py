@@ -1,5 +1,6 @@
 import yt_dlp as dl
-import os
+# import os
+
 
 LINK = 'https://www.youtube.com/watch?v=3YP_KHgVMa4&ab_channel=LinuxZone'
 
@@ -24,26 +25,20 @@ class Downloader:
 
         return value
 
-    def download(self, link=LINK):
-        # Hook para recibir datos de progreso de yt-dlp
-        def my_hook(d):
-            if d['status'] == 'downloading':
-                self.dMbytes = d['downloaded_bytes']
-                self.percent = self.__clean_percent(d['_percent_str'])
-                # file = open('./percent.txt', 'a')
-                # file.write(self.percent + '\n')
-                # file.close()
-            elif d['status'] == 'finished':
-                self.status = 'finished'
+    # Hook para recibir datos de progreso de yt-dlp
+    def my_hook(self, d):
+        if d['status'] == 'downloading':
+            self.dMbytes = d['downloaded_bytes']
+            self.percent = self.__clean_percent(d['_percent_str'])
+        elif d['status'] == 'finished':
+            self.status = 'finished'
 
+    def download(self, link=LINK):
         opts = {
-            'progress_hooks': [my_hook],
+            'progress_hooks': [self.my_hook],
         }
         with dl.YoutubeDL(opts) as ytdl:
             ytdl.download([link])
-            # os.remove('percent.txt')
-            # file = open('percent.txt', 'a')
-            # file.close()
 
 
 if __name__ == '__main__':
