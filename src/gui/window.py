@@ -1,39 +1,18 @@
 from downloader.download import Downloader
-from time import sleep
 import gi
-import threading
+from logger.logger import MyLogger
 # from multiprocessing import Process
 from db.database import Data
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GLib
 
 
-class ProgressUpdate(threading.Thread):
-    def __init__(self, progress_bar, downloader):
-        super().__init__()
-        self.progress_bar = progress_bar
-        self.downloader = downloader
-        self.is_running = True
-
-    def stop(self):
-        self.is_running = False
-
-    def run(self):
-        while self.is_running:
-            percent = self.downloader.percent
-            print('Percent', percent)
-            if percent and percent != 0:
-                GLib.idle_add(self._update_progres_bar, percent)
-            sleep(0.5)
-
-    def _update_progress_bar(self, percent):
-        self.progress_bar.set_fraction(percent)
-        return False
+_logger = MyLogger(__name__)
 
 
 class MyWindow(Gtk.Window):
     def __init__(self):
-        super().__init__(title="Hello World")
+        super().__init__(title="Downloader")
         self.notebook = Gtk.Notebook()
         self.add(self.notebook)
 
@@ -77,6 +56,12 @@ class MyWindow(Gtk.Window):
         self.notebook.append_page(self.download_page,
                                   Gtk.Label(label='Download'))
 
+    def update_progress(self, fraction, bytes_downloaded, video_size):
+        self.progress_bar.set_fraction(fraction)
+        self.progress_bar.set_text("{:.0%}".format(fraction))
+        self.progress_bar.set_tooltip_text(
+                "{}/{}".format(bytes_downloaded, video_size))
+
     def __on_button_clicked(self, widget):
         # Process for download
         link = self.download_entry.get_text()
@@ -84,18 +69,11 @@ class MyWindow(Gtk.Window):
         if link != "":
             self.progress_bar.set_fraction(0)
             downloader = Downloader()
-            updater = ProgressUpdate(self.progress_bar, downloader)
-
-            updater.start()
-            downloader.download()
-            updater.stop()
-
-            self.progress_bar.set_fraction(1)
+            downloader.run(self.update_progress)
 
         # Insert data in db
         self.data.insert(self.link)
-        if self.downloader.status == 'finished':
-            print('status is finished')
+        if downloader.status == 'finished':
             self.update_history()
 
     def display_history(self):

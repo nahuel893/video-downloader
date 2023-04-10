@@ -24,7 +24,6 @@ class MyLogger:
                 path.dirname(__file__),
                 'logs', self.filename
                 )
-        print('PATH:', self.file_path)
 
         # Get the logger instance
         self.logger = logging.getLogger(name)
